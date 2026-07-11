@@ -1,5 +1,5 @@
 # When Simple Beats Sophisticated: Forecasting Spain's Peak Electricity Demand
-*A linear regression was pre-registered against a trivial "tomorrow = today" guess. The guess won and diagnosing exactly why, down to the one pattern that beat every method tested.*
+*A linear regression was pre-registered against a trivial "tomorrow = today" guess, one that's famously hard to beat. The guess won, as expected, and diagnosing exactly why, down to the one pattern that beat every method tested, is where it starts to get interesting.*
 
 ***Stack: Python · pandas · SQL (SQLite) · scikit-learn · matplotlib/seaborn · ENTSO-E · Open-Meteo (ERA5)***
 
@@ -7,21 +7,22 @@
 
 **Overview**
 
-A three-source **SQL pipeline** (ENTSO-E demand, Open-Meteo weather, derived calendar) fed a linear regression **pre-registered** against one question: can an interpretable, feature-based model beat the trivial guess that tomorrow's peak looks like today's? **It couldn't by 32.8%.**
+A three-source **SQL pipeline** (ENTSO-E demand, Open-Meteo weather, derived calendar) fed a linear regression pre-registered against one question:
+can an interpretable, feature-based model beat the trivial guess that tomorrow's peak looks like today's? **The trivial guess outperformed the built model by 32.8%.**
 
-That's not where this stops. The loss was diagnosed in three steps: ruled out "the extra features hurt" (a lag-only model was worse still), ruled out "the model's shape is wrong" (a non-linear model still lost), and landed on the real cause, the model dilutes yesterday's signal to roughly a third of its true weight. That same diagnostic process surfaced the one pattern that survived every method tested: **weekends**. The model already tries to account for them, it's one of only seven features, and still can't close the gap.
+That's not where this stops. The loss was diagnosed in three steps: ruling out the notion that extra features hurt (a lag-only model was worse still), ruling out the model's shape being wrong (a non-linear model still lost), and landed on the real cause, the model dilutes yesterday's signal to roughly a third of its true weight. That same diagnostic process surfaced the one pattern that survived every method tested: **Weekends**. The model already tries to account for them, it's one of only seven features, and still can't close the gap.
 
 | Approach | Test MAE (MW) | Result |
 |---|---|---|
 | **Naive persistence** (tomorrow = today) | **1,565** | the benchmark to beat |
-| Feature-based model (temperature + calendar) | 2,078 | **32.8% worse, doesn't earn its complexity** |
-| Non-linear diagnostic (gradient boosting, untuned) | 1,872 | still **19.6% worse**, rules out "wrong model shape" |
+| Feature-based model (temperature + calendar) | 2,078 | **32.8% lower, doesn't earn its complexity** |
+| Non-linear diagnostic (gradient boosting, untuned) | 1,872 | still **19.6% lower**, rules out "wrong model shape" |
 
 *Held-out test: all of 2024 (364 days), trained on 1,821 prior days.*
 
 ---
 
-## Diagnosic Findings and the Error Analysis That Came With It
+## What the Analysis Found
 
 **1. The model loses by design of the test.** This was a **pre-registered** question (locked before the data was seen) so a loss is a clean result. Daily peak demand is highly autocorrelated, which makes "assume tomorrow looks like today" a genuinely hard baseline to beat.
 
@@ -29,7 +30,7 @@ That's not where this stops. The loss was diagnosed in three steps: ruled out "t
 
 **3. The real mechanism: the model dampens the one signal that matters most.** Linear regression assigns yesterday's peak a coefficient of roughly **0.3**; the naive baseline effectively uses it at **1.0**. The model dilutes exactly the signal it should be leaning on hardest.
 
-**4. The same error-analysis pass found the one pattern every method shares: Weekends..** Slicing the errors by by weekday vs. weekend: the naive baseline's error jumps 70% on weekends (1,305 → 2,214 MW); the feature-based model's jumps only 27% (1,927 → 2,456 MW) — a smaller relative degradation, though still a higher absolute error than the baseline. The model already includes an explicit weekend indicator as one of its seven features, and still can't close the gap. That rules out "a missing weekend feature" and points at something about weekend volatility the current feature set doesn't capture — a real pattern, not a diagnosed cause.
+**4. The same error-analysis pass found the one pattern every method shares: Weekends (though not to the same degree).** Slicing the errors by weekday vs. weekend the naive baseline's error jumps 69.6% (1,305 to 2,214 MW), the linear model's jumps 27.5% (1,927 to 2,456 MW), and the non-linear model's jumps only 13.5% (1,802 to 2,046 MW), it's the one place a tested model actually beats the baseline outright. That's a real reversal of the project's overall finding, as added sophistication doesn't help in general, but it does help here.
 
 **5. A second pre-registered hypothesis was tested and disproven.** Error was expected to peak at temperature extremes. It didn't, the mildest days were hardest to predict. No mechanism is claimed; the pattern is real, the cause isn't established, and that's said plainly rather than papered over.
 
@@ -39,8 +40,7 @@ That's not where this stops. The loss was diagnosed in three steps: ruled out "t
 
 **Don't build a feature-based model for this task** a simple persistence rule is already the ceiling. That's a real resourcing recommendation, tested honestly rather than assumed, and it tells a team where *not* to spend modelling budget.
 
-**If forecasting effort goes anywhere, it should go at weekend volatility specifically** not at more features or a fancier model in general, since neither closed that gap here. That's a sharper, evidence-backed
-target than temperature or season ever were.
+**If forecasting effort goes anywhere, it should go at weekends** and unlike the rest of this project, a fancier model actually helps there. The non-linear model's weekend error came in below the baseline's, the only place any tested method beat it outright. That's a sharper, evidence-backed target than temperature or season, and the first real case for added complexity.
 
 ---
 
@@ -69,8 +69,10 @@ Built around one `COUNTRY_CODE` parameter, the same pipeline runs on any ENTSO-E
 ---
 
 ## Methodology
+- **Model:** linear regression as the primary model — an interpretable baseline, tested afterward against a gradient-boosting model to check whether added complexity was worth it.
 - **Split:** Chronological (train on earlier years), test on the held-out most recent year (2024). Never shuffled, since a forecast has to be evaluated the way it's actually used: predicting forward in time.
 - **Leakage control:** Every input is knowable on the day it's used, same-day peak is excluded, and checked explicitly via correlation (max 0.4 no red flags).
+- **Validation:** no hyperparameter tuning, so no separate validation set — a straight two-way split. The gradient-boosting comparison was left deliberately untuned, so its result is a fair test, not a forced win.
 - **Metrics:** MAE (average miss in MW, easy to explain to non-technical stakeholder) as the headline. RMSE as a secondary check for large misses.
 
 ---
@@ -83,7 +85,7 @@ Built around one `COUNTRY_CODE` parameter, the same pipeline runs on any ENTSO-E
 
 ## Future Work
 - Diagnosing the weekend signal, is it a consistent or volitile trend? 
-- Different model class or a volatility specific feature, varing features.
+- Understadning why the Non-Linear model predicts weekends better than its counterparts 
 - Population weighted multi-city temperature.
 - Genuinely forecasted temperature at a fixed lead time.
 
