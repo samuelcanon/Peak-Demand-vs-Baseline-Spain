@@ -7,7 +7,7 @@
 
 **Overview**
 
-The model lost. On the held-out year, its forecasts were off by about 6.6% of daily demand on average, which is worse than a one-line rule that just carries yesterday's peak forward. That result came out of a three-source SQL pipeline (ENTSO-E demand, Open-Meteo weather, a derived calendar) feeding a pre-registered linear regression, and the naive baseline beat it by 32.8%. 
+The model lost and thats the interesitng part. On the held-out year, its forecasts were off by about 6.6% of daily demand on average, which is worse than a one-line rule that just carries yesterday's peak forward. That result came out of a three-source SQL pipeline (ENTSO-E demand, Open-Meteo weather, a derived calendar) feeding a pre-registered linear regression, and the naive baseline beat it by 32.8%. 
 
 That result was expected going in. Persistence baselines are famously tough to beat on autocorrelated data like electricity demand, so the real work was never "will the model win" but to investigate why it loses, and see what that investigation turns up. It turned up something useful,  on weekends, a more flexible model actually beats the baseline. That's the one place added sophistication pays for itself, and it's a sharper target for forecasting effort than anything the model could offer overall.
 
