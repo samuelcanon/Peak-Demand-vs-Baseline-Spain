@@ -128,4 +128,4 @@ Weather data:
 [Open-Meteo.com](https://open-meteo.com/), licensed CC BY 4.0. 
 Demand data:
 **ENTSO-E Transparency Platform**. 
-Educational / portfolio project — not an operational forecasting tool.
+Educational / portfolio project not an operational forecasting tool.
